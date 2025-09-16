@@ -1,4 +1,0 @@
-fastapi
-uvicorn
-finnlp
-pandas
