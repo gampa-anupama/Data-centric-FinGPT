@@ -1,125 +1,3 @@
-# from fastapi import FastAPI, Query
-# from fastapi.responses import JSONResponse
-# from finnlp.data_sources.news.akshare_cctv import Akshare_cctv
-# import pandas as pd
-# import os
-
-# app = FastAPI()
-
-# @app.get("/")
-# def root():
-#     return {"message": "FinNLP CCTV News API is running!"}
-
-# @app.get("/download_news")
-# def download_news(
-#     start_date: str = Query(..., description="Start date in YYYY-MM-DD"),
-#     end_date: str = Query(..., description="End date in YYYY-MM-DD")
-# ):
-#     try:
-#         # Initialize downloader
-#         downloader = Akshare_cctv()
-#         downloader.download_news(start_date, end_date)
-
-#         # Get dataframe
-#         df = downloader.dataframe
-
-#         if df.empty:
-#             return JSONResponse(
-#                 status_code=404,
-#                 content={"error": f"No news found between {start_date} and {end_date}"}
-#             )
-
-#         # Save CSV in backend folder
-#         file_path = f"cctv_news_{start_date}_{end_date}.csv"
-#         df.to_csv(file_path, index=False, encoding="utf-8")
-
-#         # Convert to dict for API response
-#         data = df.head(10).to_dict(orient="records")
-
-#         return {
-#             "message": f"News downloaded successfully between {start_date} and {end_date}",
-#             "csv_file": os.path.abspath(file_path),
-#             "preview": data   # first 10 rows as JSON
-#         }
-
-#     except Exception as e:
-#         return JSONResponse(
-#             status_code=500,
-#             content={"error": str(e)}
-#         )
-# from fastapi import FastAPI
-# from fastapi.responses import JSONResponse, FileResponse
-# import pandas as pd
-# from finnlp.data_sources.news.akshare_cctv import Akshare_cctv
-# import finnhub
-
-# app = FastAPI()
-
-# # =========================
-# # 1. CCTV NEWS (Akshare)
-# # =========================
-# @app.get("/cctv-news")
-# def get_cctv_news(start_date: str = "2023-01-01", end_date: str = "2023-01-03"):
-#     try:
-#         downloader = Akshare_cctv()
-#         downloader.download_news(start_date, end_date)
-#         df = downloader.dataframe
-
-#         # Save to CSV
-#         file_path = "cctv_news.csv"
-#         df.to_csv(file_path, index=False, encoding="utf-8")
-
-#         return {
-#             "message": "CCTV news downloaded successfully",
-#             "rows": len(df),
-#             "csv_file": file_path
-#         }
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-# # =========================
-# # 2. FINNHUB GENERAL NEWS
-# # =========================
-# @app.get("/finnhub-news")
-# def get_finnhub_news():
-#     try:
-#         # Your Finnhub API key
-#         api_key = "d2hd2r1r01qon4ebkv8gd2hd2r1r01qon4ebkv90"
-#         client = finnhub.Client(api_key=api_key)
-
-#         # Fetch general news
-#         res = client.general_news('general', min_id=None)
-
-#         df = pd.DataFrame(res)
-
-#         # Convert datetime safely
-#         if "datetime" in df.columns:
-#             df["datetime"] = pd.to_datetime(df["datetime"], unit="s")
-
-#         # Save to CSV
-#         file_path = "general_news.csv"
-#         df.to_csv(file_path, index=False)
-
-#         return {
-#             "message": "Finnhub news downloaded successfully",
-#             "rows": len(df),
-#             "csv_file": file_path
-#         }
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-# # =========================
-# # 3. Download CSV (Optional)
-# # =========================
-# @app.get("/download/{file_name}")
-# def download_file(file_name: str):
-#     try:
-#         return FileResponse(file_name, filename=file_name)
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=404)
-
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse, FileResponse
 import pandas as pd
@@ -131,8 +9,21 @@ from finnlp.data_sources.news.akshare_cctv import Akshare_cctv
 from finnlp.data_sources.news.finnhub_date_range import Finnhub_Date_Range
 from finnlp.data_sources.news.cnbc_streaming import CNBC_Streaming
 from finnlp.data_sources.news.yahoo_streaming import Yahoo_Date_Range  
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or specify your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # =========================
 # Root
@@ -141,25 +32,35 @@ app = FastAPI()
 def root():
     return {"message": "FinNLP News API is running!"}
 
+@app.get("/cctv-news/download")
+async def download_cctv_news():
+    file_path = "cctv_news_2023-01-01_2023-01-03.csv"  # or dynamically get path
+    if os.path.exists(file_path):
+        return FileResponse(file_path, filename=os.path.basename(file_path), media_type='text/csv')
+    else:
+        return {"error": "File not found"}
+    
 
-# =========================
-# 1. CCTV NEWS (Akshare)
-# =========================
 @app.get("/cctv-news")
-def get_cctv_news(start_date: str = "2023-01-01", end_date: str = "2023-01-03"):
+def get_cctv_news(
+    start_date: str = "2023-01-01",
+    end_date: str = "2023-01-03",
+    download: bool = Query(False)
+):
     try:
         downloader = Akshare_cctv()
         downloader.download_news(start_date, end_date)
         df = downloader.dataframe
-
-        # Save to CSV
         file_path = f"cctv_news_{start_date}_{end_date}.csv"
         df.to_csv(file_path, index=False, encoding="utf-8")
+
+        if download:
+            return FileResponse(path=file_path, filename=os.path.basename(file_path), media_type="text/csv")
 
         return {
             "message": "CCTV news downloaded successfully",
             "rows": len(df),
-            "csv_file": os.path.abspath(file_path),
+            "csv_file": os.path.basename(file_path),
             "preview": df.head(10).to_dict(orient="records")
         }
     except Exception as e:
@@ -326,6 +227,37 @@ def get_yahoo_news(
             "csv_file": os.path.abspath(file_path),
             "preview": preview
         }
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+from fastapi.responses import FileResponse
+
+# ---------------------------
+# Universal CSV Download Route
+# ---------------------------
+@app.get("/{source_name}/download")
+def download_news_csv(source_name: str):
+    """
+    Generic route for downloading CSVs of different sources.
+    Example: /cctv-news/download or /finnhub-news/download
+    """
+    try:
+        # Map backend routes to their respective file names
+        file_map = {
+            "cctv-news": "cctv_news_2023-01-01_2023-01-03.csv",
+            "finnhub-news": "general_news.csv",
+            "aapl-news": "aapl_news_" + (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d") + "_to_" + datetime.today().strftime("%Y-%m-%d") + ".csv",
+            "cnbc-news": "cnbc_news_apple.csv",
+            "yahoo-news": "yahoo_news_AAPL_" + (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d") + "_" + datetime.today().strftime("%Y-%m-%d") + ".csv",
+        }
+
+        file_name = file_map.get(source_name)
+        if not file_name or not os.path.exists(file_name):
+            return JSONResponse(content={"error": f"File for {source_name} not found"}, status_code=404)
+
+        return FileResponse(path=file_name, filename=os.path.basename(file_name), media_type="text/csv")
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
