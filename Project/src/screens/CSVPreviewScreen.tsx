@@ -1,238 +1,191 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
-import { Text, useTheme, ActivityIndicator, Card, DataTable } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, RouteProp } from '@react-navigation/native';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+// import React, { useEffect, useState } from 'react';
+// import { View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+// import { Text, ActivityIndicator } from 'react-native-paper';
+// import { apiService } from '../api/apiService';
 
-import { apiService } from '../services/api';
+// interface CSVPreviewProps {
+//   route: {
+//     params: {
+//       source: string;
+//       category: string;
+//     };
+//   };
+// }
 
-const { width } = Dimensions.get('window');
-const isTablet = width > 768;
+// const CSVPreview: React.FC<CSVPreviewProps> = ({ route }) => {
+//   const { source } = route.params;
+//   const [csvData, setCsvData] = useState<any[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [fileName, setFileName] = useState<string>("");
 
-type CSVPreviewRouteProp = RouteProp<{
-  CSVPreview: {
-    source: string;
-    category: string;
-  };
-}, 'CSVPreview'>;
+//   useEffect(() => {
+//     loadCSVPreview();
+//   }, []);
+
+//   const loadCSVPreview = async () => {
+//     try {
+//       const response = await apiService.getNewsCSVPreview(source.toUpperCase());
+//       if (response.preview) {
+//         setCsvData(response.preview);
+//         setFileName(response.csv_file);
+//       } else {
+//         Alert.alert("Error", "No CSV preview found");
+//       }
+//     } catch (error) {
+//       Alert.alert("Error", "Failed to fetch CSV data");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const handleDownload = async () => {
+//     try {
+//       const res = await apiService.downloadCSV(fileName);
+//       Alert.alert("Success", `CSV downloaded: ${fileName}`);
+//     } catch (error) {
+//       Alert.alert("Error", "Failed to download CSV");
+//     }
+//   };
+
+//   if (loading) {
+//     return (
+//       <View style={styles.center}>
+//         <ActivityIndicator size="large" />
+//         <Text>Loading CSV preview...</Text>
+//       </View>
+//     );
+//   }
+
+//   return (
+//     <ScrollView style={styles.container}>
+//       <Text style={styles.title}>{source} News Preview</Text>
+
+//       {csvData.length === 0 ? (
+//         <Text>No data available.</Text>
+//       ) : (
+//         <View style={styles.table}>
+//           <View style={styles.headerRow}>
+//             {Object.keys(csvData[0]).map((key, i) => (
+//               <Text key={i} style={styles.headerCell}>{key}</Text>
+//             ))}
+//           </View>
+//           {csvData.map((row, i) => (
+//             <View key={i} style={styles.dataRow}>
+//               {Object.values(row).map((val, j) => (
+//                 <Text key={j} style={styles.dataCell}>
+//                   {val ? String(val).slice(0, 25) : "-"}
+//                 </Text>
+//               ))}
+//             </View>
+//           ))}
+//         </View>
+//       )}
+
+//       <TouchableOpacity style={styles.downloadBtn} onPress={handleDownload}>
+//         <Text style={styles.downloadText}>Download CSV</Text>
+//       </TouchableOpacity>
+//     </ScrollView>
+//   );
+// };
+
+// const styles = StyleSheet.create({
+//   container: { flex: 1, padding: 10 },
+//   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+//   title: { fontWeight: 'bold', fontSize: 18, marginVertical: 10 },
+//   table: { marginTop: 10 },
+//   headerRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: '#eee' },
+//   headerCell: { width: '25%', fontWeight: 'bold', padding: 4 },
+//   dataRow: { flexDirection: 'row', flexWrap: 'wrap' },
+//   dataCell: { width: '25%', padding: 4 },
+//   downloadBtn: { backgroundColor: '#007bff', padding: 10, borderRadius: 8, marginTop: 15 },
+//   downloadText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
+// });
+
+// export default CSVPreview;
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { RootStackParamList } from '../navigation/types';
+
+type CSVPreviewRouteProp = RouteProp<RootStackParamList, 'CSVPreview'>;
 
 const CSVPreviewScreen: React.FC = () => {
   const theme = useTheme();
   const route = useRoute<CSVPreviewRouteProp>();
   const { source, category } = route.params;
 
-  const [csvData, setCsvData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [csvData, setCsvData] = useState<any[]>([]);
 
-  useEffect(() => {
-    loadCSVData();
-  }, [source]);
-
-  const loadCSVData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await apiService.getCSVData(source);
-      
-      if (response.success) {
-        setCsvData(response.data);
-      } else {
-        setError(response.message);
-      }
-    } catch (error) {
-      setError('Failed to load CSV data');
-    } finally {
-      setLoading(false);
-    }
+  const BASE_URL = 'http://127.0.0.1:8000'; // your backend URL
+  const routeMap: Record<string, string> = {
+    'CCTV News': '/cctv-news',
+    'Finnhub News': '/finnhub-news',
+    'AAPL News': '/aapl-news',
+    'CNBC News': '/cnbc-news?keyword=apple',
+    'Yahoo News': '/yahoo-news?stock=AAPL',
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.onSurface }]}>
-            Loading CSV data...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  useEffect(() => {
+    const fetchCSVPreview = async () => {
+      try {
+        const apiRoute = routeMap[source];
+        const response = await fetch(`${BASE_URL}${apiRoute}`);
+        const data = await response.json();
+        setCsvData(data.preview || []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
 
-  if (error) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error}
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    fetchCSVPreview();
+  }, [source]);
 
-  if (!csvData) {
+  if (csvData.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            No CSV data available
-          </Text>
-        </View>
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text>Loading CSV preview...</Text>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
-          CSV Preview: {source}
-        </Text>
-        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.secondary }]}>
-          {category} • {csvData.rows?.length || 0} records
-        </Text>
-      </View>
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Text style={[styles.title, { color: theme.colors.primary }]}>
+        {source} - CSV Preview
+      </Text>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content>
-            {isTablet ? (
-              // Desktop/Tablet view - Full table
-              <DataTable>
-                <DataTable.Header>
-                  {csvData.headers?.map((header: string, index: number) => (
-                    <DataTable.Title key={index} style={styles.tableHeader}>
-                      <Text style={[styles.headerText, { color: theme.colors.onSurface }]}>
-                        {header}
-                      </Text>
-                    </DataTable.Title>
-                  ))}
-                </DataTable.Header>
+      <ScrollView horizontal>
+        <View>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', paddingBottom: 5 }}>
+            {Object.keys(csvData[0]).map((key) => (
+              <Text key={key} style={{ fontWeight: 'bold', marginRight: 10 }}>
+                {key}
+              </Text>
+            ))}
+          </View>
 
-                {csvData.rows?.map((row: string[], rowIndex: number) => (
-                  <DataTable.Row key={rowIndex}>
-                    {row.map((cell: string, cellIndex: number) => (
-                      <DataTable.Cell key={cellIndex} style={styles.tableCell}>
-                        <Text style={[styles.cellText, { color: theme.colors.onSurface }]}>
-                          {cell}
-                        </Text>
-                      </DataTable.Cell>
-                    ))}
-                  </DataTable.Row>
-                ))}
-              </DataTable>
-            ) : (
-              // Mobile view - Card list
-              <View>
-                {csvData.rows?.map((row: string[], rowIndex: number) => (
-                  <Card key={rowIndex} style={[styles.rowCard, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Card.Content>
-                      {row.map((cell: string, cellIndex: number) => (
-                        <View key={cellIndex} style={styles.mobileRow}>
-                          <Text style={[styles.mobileLabel, { color: theme.colors.secondary }]}>
-                            {csvData.headers?.[cellIndex] || `Column ${cellIndex + 1}`}:
-                          </Text>
-                          <Text style={[styles.mobileValue, { color: theme.colors.onSurface }]}>
-                            {cell}
-                          </Text>
-                        </View>
-                      ))}
-                    </Card.Content>
-                  </Card>
-                ))}
-              </View>
-            )}
-          </Card.Content>
-        </Card>
+          {/* Rows */}
+          {csvData.map((row, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', paddingBottom: 3 }}>
+              {Object.values(row).map((val, i) => (
+                <Text key={i} style={{ marginRight: 10 }}>
+                  {val?.toString?.() || ''}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    padding: wp('4%'),
-    paddingBottom: hp('2%'),
-  },
-  title: {
-    fontWeight: 'bold',
-    marginBottom: hp('1%'),
-    fontSize: wp('6%'),
-  },
-  subtitle: {
-    fontSize: wp('4%'),
-    lineHeight: 20,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  card: {
-    margin: wp('4%'),
-    elevation: 2,
-  },
-  tableHeader: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  headerText: {
-    fontWeight: 'bold',
-    fontSize: isTablet ? wp('1.5%') : wp('3.5%'),
-  },
-  tableCell: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  cellText: {
-    fontSize: isTablet ? wp('1.5%') : wp('3.5%'),
-  },
-  rowCard: {
-    marginBottom: hp('2%'),
-    elevation: 1,
-  },
-  mobileRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: hp('1%'),
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  mobileLabel: {
-    fontWeight: '600',
-    fontSize: wp('3.5%'),
-    flex: 1,
-  },
-  mobileValue: {
-    fontSize: wp('3.5%'),
-    flex: 2,
-    textAlign: 'right',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: hp('2%'),
-    fontSize: wp('4%'),
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: wp('4%'),
-  },
-  errorText: {
-    fontSize: wp('4%'),
-    textAlign: 'center',
-  },
+  container: { flex: 1, padding: wp('4%') },
+  title: { fontWeight: 'bold', fontSize: wp('5%'), marginBottom: 10 },
 });
 
-export default CSVPreviewScreen; 
+export default CSVPreviewScreen;
