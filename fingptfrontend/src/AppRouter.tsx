@@ -5,7 +5,7 @@ import { Auth } from './pages/Auth';
 import { ChatBot } from './pages/ChatBot';
 import { ScrapData } from './pages/ScrapData';
 import { Portfolio } from './pages/Portfolio';
-import { DataDetails } from './pages/DataDetails';
+import  DataDetails from './pages/DataDetails';
 export function AppRouter() {
   return <BrowserRouter>
       <Routes>

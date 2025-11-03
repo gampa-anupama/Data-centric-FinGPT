@@ -1,130 +1,147 @@
-import React, { useState, createElement } from 'react';
-import { Sidebar } from '../components/Sidebar';
-import { motion } from 'framer-motion';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { DownloadIcon, ArrowLeftIcon } from 'lucide-react';
-export function DataDetails() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+const API_BASE_URL = "http://127.0.0.1:8000";
+
+interface NewsRecord {
+  [key: string]: any;
+}
+
+const DataDetails: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const source = searchParams.get('source') || 'Unknown Source';
-  const category = searchParams.get('category') || 'data';
-  // Sample full dataset
-  const fullData = Array.from({
-    length: 50
-  }, (_, i) => ({
-    id: i + 1,
-    title: `${source} Article ${i + 1}`,
-    date: new Date(2024, 0, Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
-    source: source,
-    sentiment: ['Positive', 'Negative', 'Neutral'][Math.floor(Math.random() * 3)],
-    category: category,
-    content: `Sample content for article ${i + 1} from ${source}`
-  }));
-  const handleDownload = () => {
-    const csvContent = [['ID', 'Title', 'Date', 'Source', 'Sentiment', 'Category', 'Content'], ...fullData.map(row => [row.id, row.title, row.date, row.source, row.sentiment, row.category, row.content])].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    const blob = new Blob([csvContent], {
-      type: 'text/csv'
-    });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${source.replace(/\s+/g, '_')}_data.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const source = params.get("source") || "";
+
+  const [data, setData] = useState<NewsRecord[]>([]);
+  const [meta, setMeta] = useState<{ message?: string; rows?: number }>({});
+  const [error, setError] = useState<string | null>(null);
+  const [showFull, setShowFull] = useState(false);
+
+  // Map frontend names → backend routes
+  const sourceMap: Record<string, string> = {
+    "CCTV News": "cctv-news",
+    "Finnhub News": "finnhub-news",
+    "AAPL News": "aapl-news",
+    "CNBC News": "cnbc-news",
+    "Yahoo News": "yahoo-news",
   };
-  return <div className={`w-full min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-[#FAF8F5] via-[#F0F4F8] to-[#E8F5F3]'}`}>
-      <Sidebar isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
-      <div className="flex-1 ml-64 h-screen overflow-y-auto p-6">
-        <motion.div initial={{
-        opacity: 0,
-        y: 10
-      }} animate={{
-        opacity: 1,
-        y: 0
-      }} className="max-w-6xl mx-auto">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button onClick={() => navigate('/scrape-data')} className="p-2 rounded-lg bg-white/60 backdrop-blur-sm text-gray-800 hover:bg-white/70 transition-all border border-white/20">
-                <ArrowLeftIcon className="w-4 h-4" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-teal-500 bg-clip-text text-transparent">
-                  {source} - Full Data
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  {fullData.length} records
-                </p>
-              </div>
-            </div>
-            <motion.button whileHover={{
-            scale: 1.02
-          }} whileTap={{
-            scale: 0.98
-          }} onClick={handleDownload} className="px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2 text-sm font-medium">
-              <DownloadIcon className="w-4 h-4" />
-              Download CSV
-            </motion.button>
+
+  const backendSource =
+    sourceMap[source] || source.toLowerCase().replace(/\s+/g, "-");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        console.log("Fetching from:", `${API_BASE_URL}/${backendSource}`);
+        const res = await fetch(`${API_BASE_URL}/${backendSource}`);
+        if (!res.ok) throw new Error("Failed to fetch data");
+
+        const json = await res.json();
+
+        if (json.error) {
+          setError(json.error);
+          setData([]);
+        } else {
+          setData(json.preview || []);
+          setMeta({ message: json.message, rows: json.rows });
+          setError(null);
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Failed to fetch data.");
+      }
+    };
+
+    fetchData();
+  }, [source]);
+
+  // ✅ Download CSV handler
+  const handleDownload = () => {
+    const downloadUrl = `${API_BASE_URL}/${backendSource}/download`;
+    window.open(downloadUrl, "_blank"); // open CSV in new tab or trigger download
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f6f9fc] p-8">
+      <div className="max-w-6xl mx-auto bg-white shadow-lg rounded-2xl p-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-4 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+        >
+          ← Back
+        </button>
+
+        <h1 className="text-2xl font-bold text-[#009688] mb-2">
+          {source} - Data
+        </h1>
+
+        <p className="text-gray-500 mb-4">
+          {meta.rows ? `${meta.rows} records found` : "0 records"}
+        </p>
+
+        {error ? (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            ⚠️ {error}
           </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 overflow-hidden">
+        ) : data.length === 0 ? (
+          <div className="text-gray-600 text-center py-10">
+            ⏳ Loading or no data available...
+          </div>
+        ) : (
+          <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-teal-50/50 border-b border-white/20 sticky top-0">
-                  <tr>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      ID
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Title
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Date
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Source
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Sentiment
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Category
-                    </th>
-                    <th className="p-3 text-left text-gray-800 font-semibold">
-                      Content
-                    </th>
+              <table className="min-w-full border-collapse border border-gray-300 rounded-lg">
+                <thead>
+                  <tr className="bg-[#009688] text-white">
+                    {Object.keys(data[0]).map((key) => (
+                      <th
+                        key={key}
+                        className="px-4 py-2 border border-gray-300 text-left"
+                      >
+                        {key}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {fullData.map((row, index) => <motion.tr key={row.id} initial={{
-                  opacity: 0,
-                  y: 10
-                }} animate={{
-                  opacity: 1,
-                  y: 0
-                }} transition={{
-                  delay: index * 0.01
-                }} className="border-b border-gray-100 hover:bg-white/30 transition-colors">
-                      <td className="p-3 text-gray-600">{row.id}</td>
-                      <td className="p-3 text-gray-600 max-w-xs truncate">
-                        {row.title}
-                      </td>
-                      <td className="p-3 text-gray-600">{row.date}</td>
-                      <td className="p-3 text-gray-600">{row.source}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.sentiment === 'Positive' ? 'bg-green-100 text-green-700' : row.sentiment === 'Negative' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                          {row.sentiment}
-                        </span>
-                      </td>
-                      <td className="p-3 text-gray-600">{row.category}</td>
-                      <td className="p-3 text-gray-600 max-w-md truncate">
-                        {row.content}
-                      </td>
-                    </motion.tr>)}
+                  {(showFull ? data : data.slice(0, 2)).map((row, i) => (
+                    <tr
+                      key={i}
+                      className="hover:bg-gray-50 transition border-b border-gray-200"
+                    >
+                      {Object.values(row).map((value, j) => (
+                        <td key={j} className="px-4 py-2 text-sm text-gray-700">
+                          {String(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        </motion.div>
+
+            {/* Toggle and download buttons */}
+            <div className="flex justify-between mt-6">
+              <button
+                onClick={() => setShowFull(!showFull)}
+                className="px-4 py-2 bg-[#009688] text-white rounded-lg hover:bg-[#00796b] transition"
+              >
+                {showFull ? "Hide Full Details" : "View Full Details"}
+              </button>
+
+              <button
+                onClick={handleDownload}
+                className="px-4 py-2 bg-[#009688] text-white rounded-lg hover:bg-[#e68900] transition"
+              >
+                Download CSV
+              </button>
+            </div>
+          </>
+        )}
       </div>
-    </div>;
-}
+    </div>
+  );
+};
+
+export default DataDetails;
