@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query , HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 import pandas as pd
 import os
 import finnhub
 from datetime import datetime, timedelta
+from pydantic import BaseModel
 
 from finnlp.data_sources.news.akshare_cctv import Akshare_cctv
 from finnlp.data_sources.news.finnhub_date_range import Finnhub_Date_Range
@@ -11,9 +12,8 @@ from finnlp.data_sources.news.cnbc_streaming import CNBC_Streaming
 from finnlp.data_sources.news.yahoo_streaming import Yahoo_Date_Range  
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
-
-
+from data_sources.company_announcement.juchao import Juchao_Announcement
+from data_sources.company_announcement.sec import SEC_Announcement
 app = FastAPI()
 
 app.add_middleware(
@@ -261,3 +261,57 @@ def download_news_csv(source_name: str):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+# ----- Schemas -----
+class JuchaoRequest(BaseModel):
+    start_date: str
+    end_date: str
+    stock: str
+    get_content: bool = True
+    save_dir: str = "./ann_pdfs/"
+    delate_pdf: bool = False
+
+class SECRequest(BaseModel):
+    start_date: str
+    end_date: str
+    stock: str
+    save_dir: str = "./SEC_filings/"
+
+# ----- Routes -----
+@app.post("/download_announcements")
+async def download_announcements(req: JuchaoRequest):
+    """Download Juchao announcements."""
+    try:
+        os.makedirs(req.save_dir, exist_ok=True)
+        ann = Juchao_Announcement()
+        ann.download_date_range_stock(
+            start_date=req.start_date,
+            end_date=req.end_date,
+            stock=req.stock,
+            get_content=req.get_content,
+            save_dir=req.save_dir,
+            delate_pdf=req.delate_pdf
+        )
+        if ann.dataframe is not None and not ann.dataframe.empty:
+            return {"status": "success", "data": ann.dataframe.head().to_dict(orient="records")}
+        return {"status": "no_data_found"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/download_sec_filings")
+async def download_sec_filings(req: SECRequest):
+    """Download SEC filings."""
+    try:
+        os.makedirs(req.save_dir, exist_ok=True)
+        sec = SEC_Announcement(save_dir=req.save_dir)
+        sec.download_date_range_stock(
+            start_date=req.start_date,
+            end_date=req.end_date,
+            stock=req.stock
+        )
+        if sec.dataframe is not None and not sec.dataframe.empty:
+            return {"status": "success", "data": sec.dataframe.head().to_dict(orient="records")}
+        return {"status": "no_data_found"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
